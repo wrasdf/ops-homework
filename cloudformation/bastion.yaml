@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion:  "2010-09-09"
+Mappings:
+  RegionToECSAMI:
+    ap-southeast-2:
+      AMI: ami-7e957e1c
+
+Parameters:
+
+  BastionSSHKeyName:
+    Description: SSHkey name for the bastion box.
+    Type: String
+    Default: kerry_aws_key
+
+  BastionInstanceType:
+    Description: Instance type for bastion ec2 box.
+    Type: String
+    Default: t2.nano
+
+Resources:
+
+  BastionInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !FindInMap [RegionToECSAMI, !Ref "AWS::Region", AMI]
+      InstanceType: !Ref BastionInstanceType
+      KeyName: !Ref BastionSSHKeyName
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      SubnetId: !Select [ 0, !Split [ ',', !ImportValue my-cfn-public-subnet ]]
+      Tags:
+        - Key: Name
+          Value: !Sub Bastion.${AWS::StackName}
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from office range to bastion
+      VpcId: ! ImportValue: my-cfn-vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub Bastion-Instance.${AWS::StackName}

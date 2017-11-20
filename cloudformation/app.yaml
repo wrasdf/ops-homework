@@ -1,0 +1,244 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  Version:
+    Description: Software version to deploy
+    Type: String
+    Default: "V0.0.2"
+  WebServerPort:
+    Description: Application Port
+    Type: String
+    Default: "80"
+  KeyName:
+    Description: Application ssh login keypair name
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: kerry_aws_key
+  DesiredInstances:
+    Description: Application Desired Instances
+    Type: String
+    Default: "1"
+
+Resources:
+
+  EC2LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: EC2NodeServer
+      RetentionInDays: 60
+
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !ImportValue my-cfn-vpc
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: "-1"
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ELB-SG  
+
+  ElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      ConnectionSettings:
+        IdleTimeout: 3600
+      Subnets:
+      - !Select [ 0, !Split [ ',', !ImportValue my-cfn-public-subnets ]]
+      - !Select [ 1, !Split [ ',', !ImportValue my-cfn-public-subnets ]]
+      CrossZone: true
+      SecurityGroups:
+      - !Ref ELBSecurityGroup
+      Scheme: "internet-facing"
+      Listeners:
+      - LoadBalancerPort: "80"
+        InstancePort: !Ref WebServerPort
+        InstanceProtocol: HTTP
+        Protocol: HTTP
+      HealthCheck:
+        Target: !Sub HTTP:${WebServerPort}/health
+        HealthyThreshold: "2"
+        UnhealthyThreshold: "2"
+        Interval: "10"
+        Timeout: "5"
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: 60
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ELB
+
+  EC2ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - !Select [ 0, !Split [ ',', !ImportValue my-cfn-private-subnets ]]
+      - !Select [ 1, !Split [ ',', !ImportValue my-cfn-private-subnets ]]
+      DesiredCapacity: !Ref DesiredInstances
+      HealthCheckGracePeriod: 500
+      HealthCheckType: ELB
+      LaunchConfigurationName: !Ref EC2ServerLaunchConfiguration
+      LoadBalancerNames:
+      - !Ref ElasticLoadBalancer
+      MinSize: "1"
+      MaxSize: "1"
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ASG-EC2
+        PropagateAtLaunch: true
+
+    CreationPolicy:
+      ResourceSignal:
+        Count: !Ref DesiredInstances
+        Timeout: PT10M
+
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 2
+        PauseTime: PT10M
+        WaitOnResourceSignals: true
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn:
+      - ELBSecurityGroup
+    Properties:
+      GroupDescription: EC2 Security Group
+      VpcId: !ImportValue my-cfn-vpc
+      SecurityGroupEgress:
+      - IpProtocol: "-1"
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        SourceSecurityGroupId: !Ref ELBSecurityGroup
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-EC2SecurityGroup
+
+  EC2ServerLaunchConfiguration:
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties:
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: ami-7e957e1c
+      InstanceType: t2.micro
+      SecurityGroups:
+      - !Ref EC2SecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+
+          docker run -d -p 80:3000 ikerry/node-app:latest
+          
+          echo; 
+          echo '### Wait until instance is registered as healthy in the ELB'
+          until [ "$state" == "InService" ]; do
+            state=$(aws --region ${AWS::Region} elb describe-instance-health \
+                        --load-balancer-name ${ElasticLoadBalancer} \
+                        --instances $(curl -s http://169.254.169.254/latest/meta-data/instance-id) \
+                        --query InstanceStates[0].State \
+                        --output text)
+            sleep 10
+          done
+
+          /usr/local/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2ASG
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - !Ref InstanceRole
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: NodeServerInstanceRole
+      Path: /app/
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+        - PolicyName: create-log-stream
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource: !GetAtt EC2LogGroup.Arn
+        - PolicyName: allow-read-only-access-to-ecr
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:GetRepositoryPolicy
+              - ecr:DescribeRepositories
+              - ecr:ListImages
+              - ecr:BatchGetImage
+              Resource: "*"
+        - PolicyName: allow-to-describe-instance-health-on-the-elb
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:DescribeInstanceHealth
+              Resource: "*"
+        - PolicyName: allow-send-email
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - ses:SendEmail
+              Resource: "*"
+        # - PolicyName: allow-to-decrypt-via-kms
+        #   PolicyDocument:
+        #     Version: 2012-10-17
+        #     Statement:
+        #     - Effect: Allow
+        #       Action:
+        #       - kms:Decrypt
+        #       Resource: !Ref KmsKeyArn
+        - PolicyName: allow-put-metric-data
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - cloudwatch:PutMetricData
+              Resource: "*"
+Outputs:
+  ElasticLoadBalancer:
+    Description: Application Elastic LoadBalancer
+    Value: !Ref ElasticLoadBalancer
+  EC2SecurityGroup:
+    Description: Application Security Group
+    Value: !Ref EC2SecurityGroup
+  ELBSecurityGroup:
+    Description: ELB Security Group
+    Value: !Ref ELBSecurityGroup
