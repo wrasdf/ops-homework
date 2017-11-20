@@ -1,4 +1,10 @@
-TODO:
+
+Available Scripts:
+  - make cfn-vpc -> Will create the whole vpc stack
+  - make cfn-app -> Will create the running instance into the vpc
+  - make cfn-bastion -> will create a bastion EC2 instance for debuging 
+
+TODOS:
  - Use packer build a AMI ok  
  - Docker image for node server (local & docker hub)  ok
  - Run first nodejs server on EC2
@@ -25,13 +31,15 @@ TODO:
      - HealthyHostAlarm     
 
 Need to improve:
- - add more availablity zoon ok
- - blue and green deploy
-   - updatepolicy 50%
-   - createpolicy 50%
+  - add more availablity zoon ok
+  - blue and green deploy
+    - updatepolicy 50%
+    - createpolicy 50%
+  - env support ok  
 
 Change list:
   version 0.0.2
+  - Add ENV support
   - Makesure ELB in the public subnet
   - update ELB SG Port 3000 -> 80
   - new AMI Id -> ami-7e957e1c

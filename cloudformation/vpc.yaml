@@ -5,35 +5,28 @@ Parameters:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
     Description: VPC CIDR Block (eg 10.30.0.0/16)
-    Default: 10.30.0.0/16
   AvailabilityZone1:
     Description: The AvailabilityZone ap-southeast-2 A
     Type: AWS::EC2::AvailabilityZone::Name
-    Default: ap-southeast-2b
   SubnetCIDRPublic1:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
     Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
-    Default: 10.30.32.0/20
   SubnetCIDRPrivate1:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
     Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
-    Default: 10.30.0.0/19
   AvailabilityZone2:
     Description: The AvailabilityZone ap-southeast-2 A
     Type: AWS::EC2::AvailabilityZone::Name
-    Default: ap-southeast-2c
   SubnetCIDRPublic2:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
     Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
-    Default: 10.30.96.0/20
   SubnetCIDRPrivate2:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
     Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
-    Default: 10.30.64.0/19
 
 Resources:
   VPC:

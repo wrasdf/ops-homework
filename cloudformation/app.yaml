@@ -4,19 +4,15 @@ Parameters:
   Version:
     Description: Software version to deploy
     Type: String
-    Default: "V0.0.2"
   WebServerPort:
     Description: Application Port
     Type: String
-    Default: "80"
   KeyName:
     Description: Application ssh login keypair name
     Type: AWS::EC2::KeyPair::KeyName
-    Default: kerry_aws_key
   DesiredInstances:
     Description: Application Desired Instances
     Type: String
-    Default: "1"
 
 Resources:
 
@@ -48,9 +44,7 @@ Resources:
     Properties:
       ConnectionSettings:
         IdleTimeout: 3600
-      Subnets:
-      - !Select [ 0, !Split [ ',', !ImportValue my-cfn-public-subnets ]]
-      - !Select [ 1, !Split [ ',', !ImportValue my-cfn-public-subnets ]]
+      Subnets: !Split [ ',', !ImportValue my-cfn-public-subnets ]
       CrossZone: true
       SecurityGroups:
       - !Ref ELBSecurityGroup
@@ -76,9 +70,7 @@ Resources:
   EC2ASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      VPCZoneIdentifier:
-      - !Select [ 0, !Split [ ',', !ImportValue my-cfn-private-subnets ]]
-      - !Select [ 1, !Split [ ',', !ImportValue my-cfn-private-subnets ]]
+      VPCZoneIdentifier: !Split [ ',', !ImportValue my-cfn-private-subnets ]
       DesiredCapacity: !Ref DesiredInstances
       HealthCheckGracePeriod: 500
       HealthCheckType: ELB

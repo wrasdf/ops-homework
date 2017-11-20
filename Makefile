@@ -29,13 +29,13 @@ cfn-verify-bastion:
 	$(DCR) aws cloudformation validate-template --template-body file:///app/cloudformation/bastion.yaml
 
 cfn-vpc: cfn-verify-vpc
-	$(DCR) stackup myCFNN-new up -t ./cloudformation/vpc.yaml
+	$(DCR) stackup myEC2Stack up -t ./cloudformation/vpc.yaml -p ./cloudformation/dev/parameters-vpc.yaml
 
 cfn-app: cfn-verify-app
-	$(DCR) stackup myCFNN-app up -t ./cloudformation/app.yaml
+	$(DCR) stackup myEC2Stack-app up -t ./cloudformation/app.yaml -p ./cloudformation/dev/parameters-app.yaml
 
 cfn-bastion: cfn-verify-bastion
-	$(DCR) stackup myCFNN-bastion up -t ./cloudformation/bastion.yaml
+	$(DCR) stackup myEC2Stack-bastion up -t ./cloudformation/bastion.yaml
 
 scp:
 	scp -i $(HOME)/.ssh/kerry_aws_key.pem $(HOME)/.ssh/kerry_aws_key.pem ubuntu@$(IP):/tmp/
