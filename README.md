@@ -38,6 +38,7 @@ Need to improve:
   - env support ok  
 
 Change list:
+  
   version 0.0.2
   - Add ENV support
   - Makesure ELB in the public subnet
@@ -48,6 +49,7 @@ Change list:
   - ADD cfn-signal
   - commfirmed -> the healthy check on ASG is "ELB"
     - avoid instance is running, but application dead.
+  
   Version 0.0.1
   - Remove AssociatePublicIpAddress from launchConfig
   - Add DHCP
