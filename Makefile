@@ -19,23 +19,24 @@ build-image:
 	docker build -t ikerry/node-app:latest ./app
 	docker push ikerry/node-app:latest
 
-cfn-verify-app:
-	$(DCR) aws cloudformation validate-template --template-body file:///app/cloudformation/app.yaml
+#for EC2
+cfn-verify-ec2-app:
+	$(DCR) aws cloudformation validate-template --template-body file:///app/EC2-cloudformation/app.yaml
 
-cfn-verify-vpc:
-	$(DCR) aws cloudformation validate-template --template-body file:///app/cloudformation/vpc.yaml
+cfn-verify-ec2-vpc:
+	$(DCR) aws cloudformation validate-template --template-body file:///app/EC2-cloudformation/vpc.yaml
 
-cfn-verify-bastion:
-	$(DCR) aws cloudformation validate-template --template-body file:///app/cloudformation/bastion.yaml
+cfn-verify-ec2-bastion:
+	$(DCR) aws cloudformation validate-template --template-body file:///app/EC2-cloudformation/bastion.yaml
 
-cfn-vpc: cfn-verify-vpc
-	$(DCR) stackup myEC2Stack up -t ./cloudformation/vpc.yaml -p ./cloudformation/dev/parameters-vpc.yaml
+cfn-ec2-vpc: cfn-verify-ec2-vpc
+	$(DCR) stackup myEC2Stack up -t ./EC2-cloudformation/vpc.yaml -p ./EC2-cloudformation/dev/parameters-vpc.yaml
 
-cfn-app: cfn-verify-app
-	$(DCR) stackup myEC2Stack-app up -t ./cloudformation/app.yaml -p ./cloudformation/dev/parameters-app.yaml
+cfn-ec2-app: cfn-verify-ec2-app
+	$(DCR) stackup myEC2Stack-app up -t ./EC2-cloudformation/app.yaml -p ./EC2-cloudformation/dev/parameters-app.yaml
 
-cfn-bastion: cfn-verify-bastion
-	$(DCR) stackup myEC2Stack-bastion up -t ./cloudformation/bastion.yaml
+cfn-ec2-bastion: cfn-verify-ec2-bastion
+	$(DCR) stackup myEC2Stack-bastion up -t ./EC2-cloudformation/bastion.yaml
 
 scp:
 	scp -i $(HOME)/.ssh/kerry_aws_key.pem $(HOME)/.ssh/kerry_aws_key.pem ubuntu@$(IP):/tmp/
