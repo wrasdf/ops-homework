@@ -1,9 +1,0 @@
-CidrBlock: 10.192.0.0/16
-
-AvailabilityZone1: ap-southeast-2b
-SubnetCIDRPublic1: 10.192.10.0/24
-SubnetCIDRPrivate1: 10.192.20.0/24
-
-AvailabilityZone2: ap-southeast-2c
-SubnetCIDRPublic2: 10.192.11.0/24
-SubnetCIDRPrivate2: 10.192.21.0/24

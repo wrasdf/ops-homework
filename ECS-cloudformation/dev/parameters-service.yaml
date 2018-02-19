@@ -1,3 +1,0 @@
-ContainerImage: ikerry/node-app:latest
-ContainerName: "node-service"
-ContainerPort: "3000"
