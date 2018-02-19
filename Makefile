@@ -42,8 +42,6 @@ cfn-ec2-bastion: cfn-verify-ec2-bastion
 scp:
 	scp -i $(HOME)/.ssh/kerry_aws_key.pem $(HOME)/.ssh/kerry_aws_key.pem ubuntu@$(IP):/tmp/
 
-
-
 #for ECS
 cfn-verify-ecs-vpc:
 	$(DCR) aws cloudformation validate-template --template-body file:///app/ECS-cloudformation/vpc.yaml
@@ -56,10 +54,10 @@ cfn-verify-ecs-service:
 
 
 cfn-ecs-vpc: cfn-verify-ecs-vpc
-	$(DCR) stackup myECS-Stack-vpc up -t ./ECS-cloudformation/vpc.yaml -p ./ECS-cloudformation/dev/parameters-vpc.yaml
+	$(DCR) stackup myECS-Stack-vpc up -t ./ECS-cloudformation/vpc.yaml -p ./ECS-cloudformation/params/dev/vpc.yaml
 
 cfn-ecs-cluster: cfn-verify-ecs-cluster
-	$(DCR) stackup myECS-Stack-cluster up -t ./ECS-cloudformation/cluster.yaml -p ./ECS-cloudformation/dev/parameters-cluster.yaml
+	$(DCR) stackup myECS-Stack-cluster up -t ./ECS-cloudformation/cluster.yaml -p ./ECS-cloudformation/params/dev/cluster.yaml
 
 cfn-ecs-service: cfn-verify-ecs-service
-	$(DCR) stackup myECS-Stack-service up -t ./ECS-cloudformation/service.yaml -p ./ECS-cloudformation/dev/parameters-service.yaml
+	$(DCR) stackup myECS-Stack-service up -t ./ECS-cloudformation/service.yaml -p ./ECS-cloudformation/params/dev/service.yaml
