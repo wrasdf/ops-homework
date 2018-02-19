@@ -1,61 +1,59 @@
+## What's this repo.
 
-Available Scripts:
-  - make cfn-vpc -> Will create the whole vpc stack
-  - make cfn-app -> Will create the running instance into the vpc
-  - make cfn-bastion -> will create a bastion EC2 instance for debuging 
+- Personal study case for EC2 and ECS deployment
 
-TODOS:
- - Use packer build a AMI ok  
- - Docker image for node server (local & docker hub)  ok
- - Run first nodejs server on EC2
-   - create a VPC use cfn
-     - VPC  ok
-     - DHCP ok
-     - AvailabilityZone  ok
-     - Public Subnet ok
-     - Private Subnet ok
-     - Internet Gateway ok
-     - NAT Gateway ok
-     - RouteTable with Route ok
-   - create a application in EC2 in vpc use cfn
-     - ELB ok
-     - ELB SecurityGroup ok
-     - EC2 ASG ok 
-     - EC2 SecurityGroup  ok
-     - EC2 LaunchConfiguration  ok
-     - Instance Role  ok
-     - logs -- ?
-   - Add Alarms & monitoring ?
-     - HealthyHostAlarm
-     - HttpErrorAlarm
-     - HealthyHostAlarm     
 
-Need to improve:
-  - add more availablity zoon ok
-  - blue and green deploy
-    - updatepolicy 50%
-    - createpolicy 50%
-  - env support ok  
+### Deploy to EC2 instance
 
-Change list:
-  
-  version 0.0.2
-  - Add ENV support
-  - Makesure ELB in the public subnet
-  - update ELB SG Port 3000 -> 80
-  - new AMI Id -> ami-7e957e1c
-  - update new AMI include cfn-signal commands 
-  - update new AMI include awscli(docker & awscli & ubuntu 16.04)
-  - ADD cfn-signal
-  - commfirmed -> the healthy check on ASG is "ELB"
-    - avoid instance is running, but application dead.
-  
-  Version 0.0.1
-  - Remove AssociatePublicIpAddress from launchConfig
-  - Add DHCP
-  - Use Export & ImportValue in cfn
+- build ami by packer
+```
+make build-ami
+```
 
-Nodes:
-  - Docker will automaticlly have the permission which in EC2 instance
-  - Docker need to do something when on ECS
-  - ELB security group with EC2 security group  
+- build the demo app & push to docker hub
+
+```
+docker login
+make build-image
+```
+
+- Create the EC2 VPC stack
+```
+make cfn-ec2-vpc
+```
+
+
+- Deploy your app into EC2
+```
+make cfn-ec2-app
+```
+
+- Create the bashion EC2 for debug
+```
+make cfn-ec2-bastion
+```
+
+
+### Deploy to ECS
+
+- build the demo app & push to docker hub
+
+```
+docker login
+make build-image
+```
+
+- Create the ECS VPC stack
+```
+make cfn-ecs-vpc
+```
+
+- Build your cluster environment
+```
+make cfn-ecs-cluster
+```
+
+- Deploy your service into ECS
+```
+make cfn-ecs-service
+```
