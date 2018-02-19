@@ -31,10 +31,10 @@ cfn-verify-ec2-bastion:
 	$(DCR) aws cloudformation validate-template --template-body file:///app/EC2-cloudformation/bastion.yaml
 
 cfn-ec2-vpc: cfn-verify-ec2-vpc
-	$(DCR) stackup myEC2-Stack up -t ./EC2-cloudformation/vpc.yaml -p ./EC2-cloudformation/dev/parameters-vpc.yaml
+	$(DCR) stackup myEC2-Stack up -t ./EC2-cloudformation/vpc.yaml -p ./EC2-cloudformation/params/dev/vpc.yaml
 
 cfn-ec2-app: cfn-verify-ec2-app
-	$(DCR) stackup myEC2-Stack-app up -t ./EC2-cloudformation/app.yaml -p ./EC2-cloudformation/dev/parameters-app.yaml
+	$(DCR) stackup myEC2-Stack-app up -t ./EC2-cloudformation/app.yaml -p ./EC2-cloudformation/params/dev/app.yaml
 
 cfn-ec2-bastion: cfn-verify-ec2-bastion
 	$(DCR) stackup myEC2-Stack-bastion up -t ./EC2-cloudformation/bastion.yaml
