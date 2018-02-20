@@ -60,7 +60,7 @@ Resources:
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT15M
+        Timeout: PT10M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MinInstancesInService: 1
@@ -74,7 +74,7 @@ Resources:
           - ScheduledActions
         WaitOnResourceSignals: true
 
-  EcsClusterScaleUpPolicy:
+  ECSClusterScaleUpPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       AdjustmentType: ChangeInCapacity
@@ -82,7 +82,7 @@ Resources:
       Cooldown: 300
       ScalingAdjustment: 1
 
-  EcsClusterScaleDownPolicy:
+  ECSClusterScaleDownPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       AdjustmentType: ChangeInCapacity
@@ -99,9 +99,9 @@ Resources:
       Threshold: '80'
       Period: '60'
       AlarmActions:
-        - !Ref EcsClusterScaleUpPolicy
+        - !Ref ECSClusterScaleUpPolicy
       OKActions:
-        - !Ref EcsClusterScaleDownPolicy
+        - !Ref ECSClusterScaleDownPolicy
       Dimensions:
         - Name: ClusterName
           Value: !Ref ECSCluster
@@ -118,9 +118,9 @@ Resources:
       Threshold: '80'
       Period: '60'
       AlarmActions:
-        - !Ref EcsClusterScaleUpPolicy
+        - !Ref ECSClusterScaleUpPolicy
       OKActions:
-        - !Ref EcsClusterScaleDownPolicy
+        - !Ref ECSClusterScaleDownPolicy
       Dimensions:
         - Name: ClusterName
           Value: !Ref ECSCluster
@@ -157,23 +157,114 @@ Resources:
     Properties:
       KeyName: !Ref KeyName
       IamInstanceProfile: !Ref ECSClusterProfile
-      ImageId: ami-58bb443a
+      ImageId: ami-36867d54
       InstanceType: t2.medium
       SecurityGroups:
       - !Ref ECSClusterSecurityGroup
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
+          yum install -y aws-cfn-bootstrap aws-cli awslogs jq
 
-          yum install -y aws-cfn-bootstrap
-          /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterLaunchConfiguration
-          /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterAutoScalingGroup
-
+          # set up the ECS config
           cat >> /etc/ecs/ecs.config <<EoConf
           ECS_CLUSTER=${ECSCluster}
           EoConf
+
           stop ecs
           start ecs
+
+          /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterLaunchConfiguration
+          /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterAutoScalingGroup
+
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              awslogs: []
+        files:
+
+          "/etc/cfn/cfn-hup.conf":
+            mode: 000400
+            owner: root
+            group: root
+            content: !Sub |
+              [main]
+              stack=${AWS::StackId}
+              region=${AWS::Region}
+
+          "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+            mode: 000400
+            owner: root
+            group: root
+            content: !Sub |
+              [cfn-auto-reloader-hook]
+              triggers=post.update
+              path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init
+              action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterLaunchConfiguration
+
+          "/etc/awslogs/awscli.conf":
+            content: !Sub |
+              [plugins]
+              cwlogs = cwlogs
+              [default]
+              region = ${AWS::Region}
+
+          "/etc/awslogs/awslogs.conf":
+            content: !Sub |
+              [general]
+              state_file = /var/lib/awslogs/agent-state
+
+              [/var/log/dmesg]
+              file = /var/log/dmesg
+              log_group_name = ${ECSCluster}-/var/log/dmesg
+              log_stream_name = ${ECSCluster}
+
+              [/var/log/messages]
+              file = /var/log/messages
+              log_group_name = ${ECSCluster}-/var/log/messages
+              log_stream_name = ${ECSCluster}
+              datetime_format = %b %d %H:%M:%S
+
+              [/var/log/docker]
+              file = /var/log/docker
+              log_group_name = ${ECSCluster}-/var/log/docker
+              log_stream_name = ${ECSCluster}
+              datetime_format = %Y-%m-%dT%H:%M:%S.%f
+
+              [/var/log/ecs/ecs-init.log]
+              file = /var/log/ecs/ecs-init.log.*
+              log_group_name = ${ECSCluster}-/var/log/ecs/ecs-init.log
+              log_stream_name = ${ECSCluster}
+              datetime_format = %Y-%m-%dT%H:%M:%SZ
+
+              [/var/log/ecs/ecs-agent.log]
+              file = /var/log/ecs/ecs-agent.log.*
+              log_group_name = ${ECSCluster}-/var/log/ecs/ecs-agent.log
+              log_stream_name = ${ECSCluster}
+              datetime_format = %Y-%m-%dT%H:%M:%SZ
+
+              [/var/log/ecs/audit.log]
+              file = /var/log/ecs/audit.log.*
+              log_group_name = ${ECSCluster}-/var/log/ecs/audit.log
+              log_stream_name = ${ECSCluster}
+              datetime_format = %Y-%m-%dT%H:%M:%SZ
+
+        services:
+          sysvinit:
+            cfn-hup:
+              enabled: true
+              ensureRunning: true
+              files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+            awslogs:
+              enabled: true
+              ensureRunning: true
+              files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
 
   ECSClusterProfile:
     Type: AWS::IAM::InstanceProfile
@@ -199,7 +290,6 @@ Resources:
       Policies:
         - PolicyName: allow-logs
           PolicyDocument:
-            Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
@@ -207,7 +297,6 @@ Resources:
               Resource: !GetAtt ECSClusterLogGroup.Arn
         - PolicyName: allow-read-only-access-to-ecr
           PolicyDocument:
-            Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
@@ -221,15 +310,20 @@ Resources:
               Resource: "*"
         - PolicyName: allow-ecs-permissions
           PolicyDocument:
-            Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
               - ecs:*
               Resource: "*"
+        - PolicyName: allow-s3
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+              - s3:*
+              Resource: "*"
         - PolicyName: allow-kms
           PolicyDocument:
-            Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
@@ -237,7 +331,6 @@ Resources:
               Resource: "*"
         - PolicyName: allow-dynamodb
           PolicyDocument:
-            Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
@@ -245,7 +338,6 @@ Resources:
               Resource: "*"
         - PolicyName: allow-rds
           PolicyDocument:
-            Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
@@ -253,11 +345,24 @@ Resources:
               Resource: "*"
         - PolicyName: allow-cloudwatch
           PolicyDocument:
-            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - ec2messages:*
+              Resource: "*"
+        - PolicyName: allow-EC2Messages
+          PolicyDocument:
             Statement:
             - Effect: Allow
               Action:
               - cloudwatch:*
+              Resource: "*"
+        - PolicyName: allow-SSM
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+              - ssm:*
               Resource: "*"
 
   ECSClusterLogGroup:
