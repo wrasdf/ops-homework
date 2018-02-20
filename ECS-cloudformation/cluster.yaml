@@ -294,7 +294,7 @@ Resources:
             - Effect: Allow
               Action:
               - logs:*
-              Resource: !GetAtt ECSClusterLogGroup.Arn
+              Resource: '*'
         - PolicyName: allow-read-only-access-to-ecr
           PolicyDocument:
             Statement:
@@ -364,12 +364,6 @@ Resources:
               Action:
               - ssm:*
               Resource: "*"
-
-  ECSClusterLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "${AWS::StackName}-${AWS::Region}-ECS-log-group"
-      RetentionInDays: 30
 
 Outputs:
   ECSCluster:
