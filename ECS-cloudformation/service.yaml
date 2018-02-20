@@ -17,7 +17,7 @@ Resources:
 
   ECSService:
     Type: AWS::ECS::Service
-    DependsOn: ListenerRule
+    # DependsOn: ServiceListenerRule
     Properties:
       Cluster: !ImportValue my-cfn-cluster
       DeploymentConfiguration:
@@ -62,15 +62,28 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !ImportValue my-cfn-vpc
-      Port: 80
+      Port: !Ref ContainerPort
       Protocol: HTTP
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /
+      HealthCheckPath: /health
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
+
+  # ServiceListenerRule:
+  #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  #   Properties:
+  #     ListenerArn: !Ref ServiceListener
+  #     Priority: 2
+  #     Conditions:
+  #     - Field: path-pattern
+  #       Values:
+  #       - !Ref Path
+  #     Actions:
+  #     - TargetGroupArn: !Ref TargetGroup
+  #       Type: forward
 
   ServiceListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -81,19 +94,6 @@ Resources:
       DefaultActions:
       - Type: forward
         TargetGroupArn: !Ref TargetGroup
-
-  ListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      ListenerArn: !Ref ServiceListener
-      Priority: 2
-      Conditions:
-      - Field: path-pattern
-        Values:
-        - !Ref Path
-      Actions:
-      - TargetGroupArn: !Ref TargetGroup
-        Type: forward
 
   # This IAM Role grants the service access to register/unregister with the
   # Application Load Balancer (ALB). It is based on the default documented here:
