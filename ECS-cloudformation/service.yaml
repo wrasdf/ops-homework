@@ -1,23 +1,18 @@
 AWSTemplateFormatVersion:  "2010-09-09"
 
 Parameters:
-
-  ContainerImage:
-    Type: String
-
-  ContainerName:
+  ServiceName:
     Description: The Service Container Name
     Type: String
-
+  ContainerImage:
+    Type: String
   ContainerPort:
     Description: The Service Container Port
     Type: String
-
   Path:
     Description: The path to register with the Application Load Balancer
     Type: String
     Default: /
-
 Resources:
 
   ECSService:
@@ -25,36 +20,43 @@ Resources:
     DependsOn: ListenerRule
     Properties:
       Cluster: !ImportValue my-cfn-cluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
       Role: !Ref ServiceRole
+      ServiceName: !Ref ServiceName
       DesiredCount: 1
       TaskDefinition: !Ref TaskDefinition
       LoadBalancers:
-      - ContainerName: !Ref ContainerName
+      - ContainerName: !Ref ServiceName
         ContainerPort: !Ref ContainerPort
         TargetGroupArn: !Ref TargetGroup
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: product-service
+      Family: website-service
+      RequiresCompatibilities:
+        - EC2
       ContainerDefinitions:
-        - Name: !Ref ContainerName
+        - Name: !Ref ServiceName
           Essential: true
           Image: !Ref ContainerImage
-          Memory: 128
+          Memory: '128'
+          Cpu: '2'
           PortMappings:
             - ContainerPort: !Ref ContainerPort
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref AWS::StackName
+              awslogs-group: !Ref CloudWatchLogsGroup
               awslogs-region: !Ref AWS::Region
 
   CloudWatchLogsGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Ref AWS::StackName
-      RetentionInDays: 30
+      LogGroupName: !Sub ${AWS::StackName}-${ServiceName}
+      RetentionInDays: 3
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -63,13 +65,12 @@ Resources:
       Port: 80
       Protocol: HTTP
       Matcher:
-          HttpCode: 200-299
-      HealthCheckIntervalSeconds: 20
-      HealthCheckPath: /health
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
       HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 10
+      HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 4
 
   ServiceListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -102,35 +103,32 @@ Resources:
     Properties:
       RoleName: !Sub ecs-service-${AWS::StackName}
       Path: /
-      AssumeRolePolicyDocument: |
-        {
-            "Statement": [{
-                "Effect": "Allow",
-                "Principal": { "Service": [ "ecs.amazonaws.com" ]},
-                "Action": [ "sts:AssumeRole" ]
-            }]
-        }
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ecs.amazonaws.com
+          Action:
+          - sts:AssumeRole
       Policies:
         - PolicyName: !Sub ecs-service-${AWS::StackName}
-          PolicyDocument: |
-            {
-                "Version": "2012-10-17",
-                "Statement": [{
-                        "Effect": "Allow",
-                        "Action": [
-                            "ec2:AuthorizeSecurityGroupIngress",
-                            "ec2:Describe*",
-                            "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
-                            "elasticloadbalancing:Describe*",
-                            "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
-                            "elasticloadbalancing:DeregisterTargets",
-                            "elasticloadbalancing:DescribeTargetGroups",
-                            "elasticloadbalancing:DescribeTargetHealth",
-                            "elasticloadbalancing:RegisterTargets"
-                        ],
-                        "Resource": "*"
-                }]
-            }
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:Describe*
+              - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+              - elasticloadbalancing:Describe*
+              - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+              - elasticloadbalancing:DeregisterTargets
+              - elasticloadbalancing:DescribeTargetGroups
+              - elasticloadbalancing:DescribeTargetHealth
+              - elasticloadbalancing:RegisterTargets
+              Resource: "*"
 
   ServiceScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
@@ -138,17 +136,23 @@ Resources:
     Properties:
       MaxCapacity: 10
       MinCapacity: 2
-      ResourceId: !Join ['', [service/, !ImportValue my-cfn-cluster, /, !GetAtt [ECSService, Name]]]
-      RoleARN: !GetAtt [AutoscalingRole, Arn]
+      ResourceId: !Join
+        - /
+        - - service
+          - !ImportValue my-cfn-cluster
+          - !GetAtt ECSService.Name
+      RoleARN: !GetAtt
+        - AutoscalingRole
+        - Arn
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
 
   ServiceScaleUpPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
-      PolicyName: !Sub ${ContainerName}-StepUpPolicy
+      PolicyName: !Sub ${ServiceName}-StepUpPolicy
       PolicyType: StepScaling
-      ScalingTargetId: !Ref 'ServiceScalingTarget'
+      ScalingTargetId: !Ref ServiceScalingTarget
       StepScalingPolicyConfiguration:
         AdjustmentType: ChangeInCapacity
         Cooldown: 60
@@ -160,9 +164,9 @@ Resources:
   ServiceScaleDownPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
-      PolicyName: !Sub ${ContainerName}-StepDownPolicy
+      PolicyName: !Sub ${ServiceName}-StepDownPolicy
       PolicyType: StepScaling
-      ScalingTargetId: !Ref 'ServiceScalingTarget'
+      ScalingTargetId: !Ref ServiceScalingTarget
       StepScalingPolicyConfiguration:
         AdjustmentType: ChangeInCapacity
         Cooldown: 60
@@ -194,14 +198,15 @@ Resources:
   AutoscalingRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${ContainerName}-${AWS::Region}-Autoscaling-Role
+      RoleName: !Sub ${ServiceName}-${AWS::Region}-Autoscaling-Role
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
             Principal:
               Service:
                 - application-autoscaling.amazonaws.com
-            Action: ['sts:AssumeRole']
+            Action:
+              - sts:AssumeRole
       Path: /
       Policies:
         - PolicyName: service-autoscaling

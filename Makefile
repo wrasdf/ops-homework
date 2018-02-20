@@ -12,13 +12,12 @@ build-ami:
 run:
 	$(DCR) node -d -p 3000:3000 node
 
-stop:
-	docker stop $$(docker ps -q)
-
-build-image:
-	docker build -t ikerry/node-app:latest ./app
+push-%:
+	docker build -t node-app:latest ./app
+	docker tag node-app:latest ikerry/node-app:$(*)
+	docker tag node-app:latest ikerry/node-app:latest
+	docker push ikerry/node-app:$(*)
 	docker push ikerry/node-app:latest
-
 
 #for EC2
 cfn-verify-ec2-app:
@@ -41,6 +40,7 @@ cfn-ec2-bastion: cfn-verify-ec2-bastion
 
 scp:
 	scp -i $(HOME)/.ssh/kerry_aws_key.pem $(HOME)/.ssh/kerry_aws_key.pem ubuntu@$(IP):/tmp/
+
 
 #for ECS
 cfn-verify-ecs-vpc:
