@@ -18,7 +18,7 @@ Resources:
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Subnets: !Split [ ',', !ImportValue my-cfn-private-subnets ]
+      Subnets: !Split [ ',', !ImportValue my-cfn-public-subnets ]
       SecurityGroups:
       - !Ref ALBSecurityGroup
       Tags:
