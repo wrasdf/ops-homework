@@ -1,7 +1,7 @@
 ## What's this repo.
 
-- Personal study case for EC2 and ECS deployment
-
+- CloudFormation for EC2 Deployment
+- CloudFormation for ECS Deployment
 
 ### Deploy to EC2 instance
 
@@ -14,14 +14,13 @@ make build-ami
 
 ```
 docker login
-make build-image
+make push-v0.1.0
 ```
 
 - Create the EC2 VPC stack
 ```
 make cfn-ec2-vpc
 ```
-
 
 - Deploy your app into EC2
 ```
@@ -40,7 +39,7 @@ make cfn-ec2-bastion
 
 ```
 docker login
-make build-image
+make push-v0.1.0
 ```
 
 - Create the ECS VPC stack
