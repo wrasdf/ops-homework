@@ -18,9 +18,9 @@ Parameters:
     Default: /
 Resources:
 
-  ECSService:
+  ECSService1:
     Type: AWS::ECS::Service
-    # DependsOn: ServiceListenerRule
+    DependsOn: ServiceListenerRule
     Properties:
       Cluster: !ImportValue my-cfn-cluster
       DeploymentConfiguration:
@@ -29,13 +29,31 @@ Resources:
       Role: !Ref ServiceRole
       ServiceName: !Ref ServiceName
       DesiredCount: 1
-      TaskDefinition: !Ref TaskDefinition
+      TaskDefinition: !Ref Task1
       LoadBalancers:
       - ContainerName: !Ref ServiceName
         ContainerPort: !Ref ContainerPort
         TargetGroupArn: !Ref TargetGroup
 
-  TaskDefinition:
+  ECSService2:
+    Type: AWS::ECS::Service
+    DependsOn: ServiceListenerRule
+    Properties:
+      Cluster: !ImportValue my-cfn-cluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Role: !Ref ServiceRole
+      ServiceName: !Ref ServiceName
+      DesiredCount: 1
+      TaskDefinition: !Ref Task1
+      LoadBalancers:
+      - ContainerName: !Ref ServiceName
+        ContainerPort: !Ref ContainerPort
+        TargetGroupArn: !Ref TargetGroup
+
+
+  Task1:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: website-service
@@ -55,13 +73,34 @@ Resources:
               awslogs-group: !Ref CloudWatchLogsGroup
               awslogs-region: !Ref AWS::Region
 
+  Task2:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: website-service
+      RequiresCompatibilities:
+        - EC2
+      ContainerDefinitions:
+        - Name: !Ref ServiceName
+          Essential: true
+          Image: !Ref ContainerImage
+          Memory: '128'
+          Cpu: '2'
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+
+
   CloudWatchLogsGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub ${AWS::StackName}-${ServiceName}
       RetentionInDays: 14
 
-  TargetGroup:
+  TargetGroupService1:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !ImportValue my-cfn-vpc
@@ -70,10 +109,30 @@ Resources:
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /health
+      HealthCheckPath: /node1/health
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+
+  TargetGroupService2:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !ImportValue my-cfn-vpc
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /node2/health
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
 
   ServiceHttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -82,24 +141,36 @@ Resources:
       Port: 443
       Protocol: HTTPS
       DefaultActions:
-      - Type: forward
-        TargetGroupArn: !Ref TargetGroup
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupService1
       Certificates:
         - CertificateArn: !Ref AWSCertARN
 
-  # ServiceListenerRule:
-  #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
-  #   Properties:
-  #     ListenerArn: !Ref ServiceListener
-  #     Priority: 2
-  #     Conditions:
-  #     - Field: path-pattern
-  #       Values:
-  #       - !Ref Path
-  #     Actions:
-  #     - TargetGroupArn: !Ref TargetGroup
-  #       Type: forward
+  ServiceListenerRule1:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref ServiceHttpsListener
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /node1
+      Actions:
+        - TargetGroupArn: !Ref TargetGroupService1
+          Type: forward
 
+  ServiceListenerRule2:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref ServiceHttpsListener
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /node2
+      Actions:
+        - TargetGroupArn: !Ref TargetGroupService2
+          Type: forward
 
   # This IAM Role grants the service access to register/unregister with the
   # Application Load Balancer (ALB). It is based on the default documented here:
@@ -112,29 +183,29 @@ Resources:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - ecs.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Policies:
         - PolicyName: !Sub ecs-service-${AWS::StackName}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
-            - Effect: Allow
-              Action:
-              - ec2:AuthorizeSecurityGroupIngress
-              - ec2:Describe*
-              - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
-              - elasticloadbalancing:Describe*
-              - elasticloadbalancing:RegisterInstancesWithLoadBalancer
-              - elasticloadbalancing:DeregisterTargets
-              - elasticloadbalancing:DescribeTargetGroups
-              - elasticloadbalancing:DescribeTargetHealth
-              - elasticloadbalancing:RegisterTargets
-              Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:Describe*
+                  - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+                  - elasticloadbalancing:Describe*
+                  - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+                  - elasticloadbalancing:DeregisterTargets
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeTargetHealth
+                  - elasticloadbalancing:RegisterTargets
+                Resource: "*"
 
   ServiceScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
