@@ -1,4 +1,5 @@
 ContainerImage: ikerry/node-app:0.1.0
-ServiceName: "node-service"
+ServiceName: node-service
 ContainerPort: "3000"
 Path: "/node"
+AWSCertARN: arn:aws:acm:ap-southeast-2:693429498512:certificate/8b9aa27e-6ea8-4811-9d14-3a7e566a5422

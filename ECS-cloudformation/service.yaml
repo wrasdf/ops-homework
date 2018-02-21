@@ -9,6 +9,9 @@ Parameters:
   ContainerPort:
     Description: The Service Container Port
     Type: String
+  AWSCertARN:
+    Description: The Service Certificates ARN
+    Type: String
   Path:
     Description: The path to register with the Application Load Balancer
     Type: String
@@ -56,7 +59,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub ${AWS::StackName}-${ServiceName}
-      RetentionInDays: 3
+      RetentionInDays: 14
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -72,6 +75,18 @@ Resources:
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
 
+  ServiceHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !ImportValue my-cfn-cluster-loadBalancer
+      Port: 443
+      Protocol: HTTPS
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref TargetGroup
+      Certificates:
+        - CertificateArn: !Ref AWSCertARN
+
   # ServiceListenerRule:
   #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
   #   Properties:
@@ -85,15 +100,6 @@ Resources:
   #     - TargetGroupArn: !Ref TargetGroup
   #       Type: forward
 
-  ServiceListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !ImportValue my-cfn-cluster-loadBalancer
-      Port: 80
-      Protocol: HTTP
-      DefaultActions:
-      - Type: forward
-        TargetGroupArn: !Ref TargetGroup
 
   # This IAM Role grants the service access to register/unregister with the
   # Application Load Balancer (ALB). It is based on the default documented here:
