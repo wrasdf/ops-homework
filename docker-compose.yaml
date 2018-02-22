@@ -1,5 +1,5 @@
 ---
-version: "3.2"
+version: "2.3"
 services:
   shush:
     image: realestate/shush:1.3.4
@@ -39,6 +39,8 @@ services:
       dockerfile: Dockerfile
     expose:
       - "3000"
+    environment:
+      - NODE=Node1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 5s

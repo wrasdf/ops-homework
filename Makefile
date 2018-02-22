@@ -10,7 +10,7 @@ build-ami:
 		./config.json
 
 run:
-	$(DCR) node -d -p 3000:3000 node
+	$(DCR) -d -p 3000:3000 node
 
 push-%:
 	docker build -t node-app:latest ./app

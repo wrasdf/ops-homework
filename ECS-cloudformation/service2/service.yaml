@@ -1,0 +1,228 @@
+AWSTemplateFormatVersion:  "2010-09-09"
+
+Parameters:
+  ServiceName:
+    Description: The Service Container Name
+    Type: String
+  ContainerImage:
+    Type: String
+  ContainerPort:
+    Description: The Service Container Port
+    Type: String
+  AWSCertARN:
+    Description: The Service Certificates ARN
+    Type: String
+  Path:
+    Description: The path to register with the Application Load Balancer
+    Type: String
+    Default: /
+Resources:
+
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: ServiceListenerRule
+    Properties:
+      Cluster: !ImportValue my-cfn-cluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Role: !Ref ServiceRole
+      ServiceName: !Ref ServiceName
+      DesiredCount: 1
+      TaskDefinition: !Ref TaskDefinition
+      LoadBalancers:
+      - ContainerName: !Ref ServiceName
+        ContainerPort: !Ref ContainerPort
+        TargetGroupArn: !Ref TargetGroup
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: website-service
+      RequiresCompatibilities:
+        - EC2
+      ContainerDefinitions:
+        - Name: !Ref ServiceName
+          Essential: true
+          Image: !Ref ContainerImage
+          Memory: '128'
+          Cpu: '2'
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}-${ServiceName}
+      RetentionInDays: 14
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !ImportValue my-cfn-vpc
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+
+  ServiceHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !ImportValue my-cfn-cluster-loadBalancer
+      Port: 443
+      Protocol: HTTPS
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref TargetGroup
+      Certificates:
+        - CertificateArn: !Ref AWSCertARN
+
+  # ServiceListenerRule:
+  #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  #   Properties:
+  #     ListenerArn: !Ref ServiceListener
+  #     Priority: 2
+  #     Conditions:
+  #     - Field: path-pattern
+  #       Values:
+  #       - !Ref Path
+  #     Actions:
+  #     - TargetGroupArn: !Ref TargetGroup
+  #       Type: forward
+
+
+  # This IAM Role grants the service access to register/unregister with the
+  # Application Load Balancer (ALB). It is based on the default documented here:
+  # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_IAM_role.html
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ecs-service-${AWS::StackName}
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ecs.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub ecs-service-${AWS::StackName}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:Describe*
+              - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+              - elasticloadbalancing:Describe*
+              - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+              - elasticloadbalancing:DeregisterTargets
+              - elasticloadbalancing:DescribeTargetGroups
+              - elasticloadbalancing:DescribeTargetHealth
+              - elasticloadbalancing:RegisterTargets
+              Resource: "*"
+
+  ServiceScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: ECSService
+    Properties:
+      MaxCapacity: 10
+      MinCapacity: 2
+      ResourceId: !Join
+        - /
+        - - service
+          - !ImportValue my-cfn-cluster
+          - !GetAtt ECSService.Name
+      RoleARN: !GetAtt
+        - AutoscalingRole
+        - Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  ServiceScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${ServiceName}-StepUpPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ServiceScalingTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            ScalingAdjustment: 1
+
+  ServiceScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${ServiceName}-StepDownPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ServiceScalingTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: -1
+
+  CPUUtilizationHighAlert:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '80'
+      Period: '60'
+      AlarmActions:
+        - !Ref ServiceScaleUpPolicy
+      OKActions:
+        - !Ref ServiceScaleDownPolicy
+      Dimensions:
+        - Name: ClusterName
+          Value: !ImportValue my-cfn-cluster
+        - Name: ServiceName
+          Value: !GetAtt ECSService.Name
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+
+  AutoscalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ServiceName}-${AWS::Region}-Autoscaling-Role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - application-autoscaling.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: service-autoscaling
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - application-autoscaling:*
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:PutMetricAlarm
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: '*'

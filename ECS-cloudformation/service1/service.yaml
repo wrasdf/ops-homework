@@ -20,7 +20,7 @@ Resources:
 
   ECSService:
     Type: AWS::ECS::Service
-    # DependsOn: ServiceListenerRule
+    DependsOn: ServiceListenerRule
     Properties:
       Cluster: !ImportValue my-cfn-cluster
       DeploymentConfiguration:
