@@ -1,5 +1,9 @@
 ## Change list:
 
+### version 0.0.3
+- Add vpv-flow-logs
+- ADD DB subnet
+
 ### version 0.0.2
 - Add ENV support
 - Make sure ELB in the public subnet

@@ -1,5 +1,4 @@
-Version: "V0.0.2"
+Version: "V0.0.3"
 WebServerPort: "80"
 KeyName: "kerry_aws_key"
 DesiredInstances: "1"
-
