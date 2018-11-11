@@ -15,13 +15,13 @@ services:
       - $HOME/.aws:/root/.aws
       - .:/app
     environment:
-      - AWS_DEFAULT_REGION=ap-southeast-2
+      - AWS_DEFAULT_REGION=ap-southeast-1
 
   aws:
     image: cgswong/aws:aws
     working_dir: /app
     environment:
-      - AWS_DEFAULT_REGION=ap-southeast-2
+      - AWS_DEFAULT_REGION=ap-southeast-1
     volumes:
       - .:/app
       - $HOME/.aws:/root/.aws

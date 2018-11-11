@@ -1,12 +1,17 @@
+---
 AWSTemplateFormatVersion:  "2010-09-09"
 Parameters:
   Environment:
     Description: The name of bastion ENV
     Type: String
+  AMIId:
+    Description: AMI Id.
+    Type: String
+    Default: ami-0d4d4a42a45fb8e4a
   BastionSSHKeyName:
     Description: SSHkey name for the bastion box.
     Type: String
-    Default: kerry_aws_key
+    Default: EC2-Key
   BastionInstanceType:
     Description: Instance type for bastion ec2 box.
     Type: String
@@ -17,9 +22,6 @@ Resources:
     Type: "AWS::AutoScaling::AutoScalingGroup"
     Properties:
       AutoScalingGroupName: !Sub bastion-${Environment}
-      AvailabilityZones:
-        Fn::GetAZs:
-          Ref: "AWS::Region"
       LaunchConfigurationName: !Ref BastionLaunchConfiguration
       HealthCheckType: EC2
       HealthCheckGracePeriod: 500
@@ -94,7 +96,7 @@ Resources:
                 - '/etc/awslogs/awscli.conf'
     Properties:
       KeyName: !Ref BastionSSHKeyName
-      ImageId: ami-00e17d1165b9dd3ec
+      ImageId: !Ref AMIId
       InstanceType: !Ref BastionInstanceType
       IamInstanceProfile: !Ref BastionProfile
       SecurityGroups:

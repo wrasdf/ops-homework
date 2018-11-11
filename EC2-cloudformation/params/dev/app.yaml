@@ -1,5 +1,6 @@
+---
 Version: "V0.0.3"
 Environment: ops-dev
-KeyName: "kerry_aws_key"
+KeyName: EC2-Key
 DesiredInstances: "1"
-WebServerCertARN: "arn:aws:acm:us-east-1:693429498512:certificate/89069c5e-e76a-4c0b-840a-bbb9b211ae1c"
+# WebServerCertARN: "arn:aws:acm:us-east-1:693429498512:certificate/89069c5e-e76a-4c0b-840a-bbb9b211ae1c"

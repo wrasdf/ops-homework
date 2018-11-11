@@ -7,13 +7,17 @@ Parameters:
   Environment:
     Description: The name to associate resources with
     Type: String
-  WebServerCertARN:
-    Type: String
-    Description: the Amazon Resource Name (ARN) of an AWS Certificate Manager (ACM) certificate.
-    AllowedPattern: "arn:aws:acm:.*"
+  # WebServerCertARN:
+  #   Type: String
+  #   Description: the Amazon Resource Name (ARN) of an AWS Certificate Manager (ACM) certificate.
+  #   AllowedPattern: "arn:aws:acm:.*"
   KeyName:
     Description: Application ssh login keypair name
     Type: AWS::EC2::KeyPair::KeyName
+  AMIId:
+    Description: AMI Id.
+    Type: String
+    Default: ami-0d4d4a42a45fb8e4a
   DesiredInstances:
     Description: Application Desired Instances
     Type: String
@@ -23,7 +27,7 @@ Resources:
   EC2LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: my-cfn-ec2-${Environment}
+      LogGroupName: !Sub my-cfn-ec2-${Environment}
       RetentionInDays: 60
 
   ELBSecurityGroup:
@@ -50,13 +54,9 @@ Resources:
   ElasticLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
-      LoadBalancerName: !Sub ELB-${Environment}
       ConnectionSettings:
         IdleTimeout: 3600
       Subnets: !Split [ ',', !ImportValue my-cfn-public-subnets ]
-      AvailabilityZones:
-      - ap-southeast-2b
-      - ap-southeast-2c
       CrossZone: true
       SecurityGroups:
       - !Ref ELBSecurityGroup
@@ -66,10 +66,10 @@ Resources:
         InstancePort: '80'
         Protocol: TCP
         InstanceProtocol: TCP
-      - LoadBalancerPort: '443'
-        InstancePort: '80'
-        Protocol: HTTPS
-        SSLCertificateId: !Ref WebServerCertARN
+      # - LoadBalancerPort: '443'
+      #   InstancePort: '80'
+      #   Protocol: HTTPS
+      #   SSLCertificateId: !Ref WebServerCertARN
       HealthCheck:
         Target: !Sub HTTP:80/health
         HealthyThreshold: "2"
@@ -122,7 +122,9 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        SourceSecurityGroupId: !ImportValue my-cfn-bastion-${Environment}
+        SourceSecurityGroupId:
+          Fn::ImportValue:
+            !Sub my-cfn-bastion-${Environment}
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
@@ -247,7 +249,7 @@ Resources:
     Properties:
       KeyName: !Ref KeyName
       IamInstanceProfile: !Ref InstanceProfile
-      ImageId: ami-00e17d1165b9dd3ec
+      ImageId: !Ref AMIId
       InstanceType: t2.micro
       SecurityGroups:
       - !Ref EC2SecurityGroup

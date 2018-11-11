@@ -14,8 +14,9 @@ Parameters:
     Type: String
     Description: VPC CIDR Block (eg 10.30.0.0/16)
   AvailabilityZone1:
-    Description: The AvailabilityZone ap-southeast-2b
-    Type: AWS::EC2::AvailabilityZone::Name
+    Description: The AvailabilityZone ap-southeast-1a
+    # Type: AWS::EC2::AvailabilityZone::Name
+    Type: String
   SubnetCIDRPublic1:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
@@ -30,8 +31,9 @@ Parameters:
     Description: VPC CIDR Block for the Public Subnet (eg 10.30.28.0/20)
 
   AvailabilityZone2:
-    Description: The AvailabilityZone ap-southeast-2c
-    Type: AWS::EC2::AvailabilityZone::Name
+    Description: The AvailabilityZone ap-southeast-1b
+    # Type: AWS::EC2::AvailabilityZone::Name
+    Type: String
   SubnetCIDRPublic2:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
@@ -309,7 +311,7 @@ Resources:
       CidrBlock: !Ref SubnetCIDRDB1
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-${AvailabilityZone2}-db-Private1
+          Value: !Sub ${AWS::StackName}-${AvailabilityZone1}-db-Private1
 
   PrivateDBSubnet2:
     Type: AWS::EC2::Subnet
@@ -330,26 +332,26 @@ Resources:
         - !Ref PrivateDBSubnet2
 
 Outputs:
-    VPC:
-      Description: A reference to the created VPC
-      Value: !Ref VPC
-      Export:
-        Name: my-cfn-vpc
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+    Export:
+      Name: my-cfn-vpc
 
-    PublicSubnets:
-      Description: A list of the public subnets
-      Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
-      Export:
-        Name: my-cfn-public-subnets
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+    Export:
+      Name: my-cfn-public-subnets
 
-    PrivateSubnets:
-      Description: A list of the private subnets
-      Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
-      Export:
-        Name: my-cfn-private-subnets
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+    Export:
+      Name: my-cfn-private-subnets
 
-    DBPrivateSubnets:
-      Description: A list of the db private subnets
-      Value: !Join [ ",", [ !Ref PrivateDBSubnet1, !Ref PrivateDBSubnet2 ]]
-      Export:
-        Name: my-cfn-private-db-subnets
+  DBPrivateSubnets:
+    Description: A list of the db private subnets
+    Value: !Join [ ",", [ !Ref PrivateDBSubnet1, !Ref PrivateDBSubnet2 ]]
+    Export:
+      Name: my-cfn-private-db-subnets
