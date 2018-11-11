@@ -1,5 +1,4 @@
-EnvironmentName: ops-dev
-
+Environment: ops-dev
 CidrBlock: 10.30.0.0/16
 
 AvailabilityZone1: ap-southeast-2b

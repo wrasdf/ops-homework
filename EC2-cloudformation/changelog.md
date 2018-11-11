@@ -3,6 +3,9 @@
 ### version 0.0.3
 - Add vpv-flow-logs
 - ADD DB subnet
+- Update Bastion.yaml
+  - Use ASG
+  - Add bastion logs
 
 ### version 0.0.2
 - Add ENV support

@@ -1,41 +1,161 @@
 AWSTemplateFormatVersion:  "2010-09-09"
-Mappings:
-  RegionToECSAMI:
-    ap-southeast-2:
-      AMI: ami-7e957e1c
-
 Parameters:
-
+  Environment:
+    Description: The name of bastion ENV
+    Type: String
   BastionSSHKeyName:
     Description: SSHkey name for the bastion box.
     Type: String
     Default: kerry_aws_key
-
   BastionInstanceType:
     Description: Instance type for bastion ec2 box.
     Type: String
     Default: t2.nano
 
 Resources:
-
-  BastionInstance:
-    Type: "AWS::EC2::Instance"
+  BastionASG:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
     Properties:
-      ImageId: !FindInMap [RegionToECSAMI, !Ref "AWS::Region", AMI]
-      InstanceType: !Ref BastionInstanceType
-      KeyName: !Ref BastionSSHKeyName
-      SecurityGroupIds:
-        - !Ref BastionSecurityGroup
-      SubnetId: !Select [ 0, !Split [ ',', !ImportValue my-cfn-public-subnet ]]
+      AutoScalingGroupName: !Sub bastion-${Environment}
+      AvailabilityZones:
+        Fn::GetAZs:
+          Ref: "AWS::Region"
+      LaunchConfigurationName: !Ref BastionLaunchConfiguration
+      HealthCheckType: EC2
+      HealthCheckGracePeriod: 500
+      DesiredCapacity: 0
+      MinSize: 0
+      MaxSize: 1
       Tags:
         - Key: Name
-          Value: !Sub Bastion.${AWS::StackName}
+          Value: !Sub bastion-${Environment}
+          PropagateAtLaunch: true
+      TerminationPolicies:
+        - OldestInstance
+      VPCZoneIdentifier: !ImportValue: my-cfn-public-subnets
+
+  BastionLaunchConfiguration:
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
+                [plugins]
+                cwlogs = cwlogs
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
+                [plugins]
+                cwlogs = cwlogs
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                [/var/log/messages]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/messages
+                buffer_duration = 5000
+                log_stream_name = {instance_id}/var/log/messages
+                initial_position = start_of_file
+                log_group_name = ${BastionLogGroup}
+                [/var/log/secure]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/secure
+                log_stream_name = {instance_id}/var/log/secure
+                log_group_name = ${BastionLogGroup}
+                initial_position = start_of_file
+              mode: '000644'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                packages:
+                  yum:
+                  - awslogs
+                files:
+                - '/etc/awslogs/awslogs.conf'
+                - '/etc/awslogs/awscli.conf'
+    Properties:
+      KeyName: !Ref BastionSSHKeyName
+      ImageId: ami-00e17d1165b9dd3ec
+      InstanceType: !Ref BastionInstanceType
+      IamInstanceProfile: !Ref BastionProfile
+      SecurityGroups:
+      - !Ref BastionSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y aws-cfn-bootstrap
+
+          # Start cfn-init
+          /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionLaunchConfiguration || error_exit 'Failed to run cfn-init'
+
+          # signal success
+          /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionASG
+
+  BastionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName : !Sub bastion-${Environment}
+      RetentionInDays: 7
+
+  BastionProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: '/'
+      Roles:
+      - !Ref BastionIAMRole
+
+  BastionIAMRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'ec2.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+      - PolicyName: logs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:Describe*
+            Resource:
+            - arn:aws:logs:*:*:*
 
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
+      GroupName: !Sub bastion-${Environment}
       GroupDescription: Allow traffic from office range to bastion
-      VpcId: ! ImportValue: my-cfn-vpc
+      VpcId: !ImportValue: my-cfn-vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -43,4 +163,4 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub Bastion-Instance.${AWS::StackName}
+          Value: !Sub bastion-${Environment}
