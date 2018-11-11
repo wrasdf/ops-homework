@@ -5,10 +5,7 @@
 
 ### Deploy to EC2 instance
 
-- build ami by packer
-```
-make build-ami
-```
+- [Change Logs](https://github.com/wrasdf/ops-homework/blob/master/EC2-cloudformation/changelog.md)
 
 - build the demo app & push to docker hub
 
@@ -19,21 +16,23 @@ make push-v0.1.0
 
 - Create the EC2 VPC stack
 ```
-make cfn-ec2-vpc
+make deploy-ec2-vpc
 ```
 
 - Deploy your app into EC2
 ```
-make cfn-ec2-app
+make deploy-ec2-app
 ```
 
 - Create the bashion EC2 for debug
 ```
-make cfn-ec2-bastion
+make deploy-ec2-bastion
 ```
 
-
 ### Deploy to ECS
+
+- [Change Logs](https://github.com/wrasdf/ops-homework/blob/master/ECS-cloudformation/changelog.md)
+
 
 - build the demo app & push to docker hub
 
@@ -44,15 +43,15 @@ make push-v0.1.0
 
 - Create the ECS VPC stack
 ```
-make cfn-ecs-vpc
+make deploy-ecs-vpc
 ```
 
 - Build your cluster environment
 ```
-make cfn-ecs-cluster
+make deploy-ecs-cluster
 ```
 
 - Deploy your service into ECS
 ```
-make cfn-ecs-service
+make deploy-ecs-service
 ```
