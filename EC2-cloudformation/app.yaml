@@ -4,9 +4,13 @@ Parameters:
   Version:
     Description: Software version to deploy
     Type: String
-  WebServerPort:
-    Description: Application Port
+  Environment:
+    Description: The name to associate resources with
     Type: String
+  WebServerCertARN:
+    Type: String
+    Description: the Amazon Resource Name (ARN) of an AWS Certificate Manager (ACM) certificate.
+    AllowedPattern: "arn:aws:acm:.*"
   KeyName:
     Description: Application ssh login keypair name
     Type: AWS::EC2::KeyPair::KeyName
@@ -19,7 +23,7 @@ Resources:
   EC2LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: EC2NodeServer
+      LogGroupName: my-cfn-ec2-${Environment}
       RetentionInDays: 60
 
   ELBSecurityGroup:
@@ -32,42 +36,57 @@ Resources:
         FromPort: '80'
         ToPort: '80'
         CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
       - IpProtocol: "-1"
         CidrIp: 0.0.0.0/0
       Tags:
       - Key: Name
-        Value: !Sub ${AWS::StackName}-ELB-SG  
+        Value: !Sub ${AWS::StackName}-EC2-ELB-SG
 
   ElasticLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
+      LoadBalancerName: !Sub ELB-${Environment}
       ConnectionSettings:
         IdleTimeout: 3600
       Subnets: !Split [ ',', !ImportValue my-cfn-public-subnets ]
+      AvailabilityZones:
+      - ap-southeast-2b
+      - ap-southeast-2c
       CrossZone: true
       SecurityGroups:
       - !Ref ELBSecurityGroup
       Scheme: "internet-facing"
       Listeners:
-      - LoadBalancerPort: "80"
-        InstancePort: !Ref WebServerPort
-        InstanceProtocol: HTTP
-        Protocol: HTTP
+      - LoadBalancerPort: '80'
+        InstancePort: '80'
+        Protocol: TCP
+        InstanceProtocol: TCP
+      - LoadBalancerPort: '443'
+        InstancePort: '80'
+        Protocol: HTTPS
+        SSLCertificateId: !Ref WebServerCertARN
       HealthCheck:
-        Target: !Sub HTTP:${WebServerPort}/health
+        Target: !Sub HTTP:80/health
         HealthyThreshold: "2"
         UnhealthyThreshold: "2"
         Interval: "10"
         Timeout: "5"
       ConnectionDrainingPolicy:
         Enabled: true
-        Timeout: 60
+        Timeout: 30
       Tags:
       - Key: Name
-        Value: !Sub ${AWS::StackName}-ELB
+        Value: !Sub ${AWS::StackName}-EC2-ELB
 
   EC2ASG:
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier: !Split [ ',', !ImportValue my-cfn-private-subnets ]
@@ -81,20 +100,13 @@ Resources:
       MaxSize: "1"
       Tags:
       - Key: Name
-        Value: !Sub ${AWS::StackName}-ASG-EC2
+        Value: !Sub ${AWS::StackName}-EC2-ASG
         PropagateAtLaunch: true
 
     CreationPolicy:
       ResourceSignal:
         Count: !Ref DesiredInstances
         Timeout: PT10M
-
-    UpdatePolicy:
-      AutoScalingReplacingUpdate:
-        MinInstancesInService: 1
-        MaxBatchSize: 2
-        PauseTime: PT10M
-        WaitOnResourceSignals: true
 
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -110,21 +122,132 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 0.0.0.0/0
+        SourceSecurityGroupId: !ImportValue my-cfn-bastion-${Environment}
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
         SourceSecurityGroupId: !Ref ELBSecurityGroup
       Tags:
       - Key: Name
-        Value: !Sub ${AWS::StackName}-EC2SecurityGroup
+        Value: !Sub ${AWS::StackName}-EC2-SecurityGroup
 
   EC2ServerLaunchConfiguration:
     Type: "AWS::AutoScaling::LaunchConfiguration"
+    Metadata:
+      AWS::CloudFormation::Init:
+        aswLogConfig:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
+                [plugins]
+                cwlogs = cwlogs
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
+                [plugins]
+                cwlogs = cwlogs
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                [/var/log/amazon/ssm/amazon-ssm-agent.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/amazon/ssm/amazon-ssm-agent.log
+                log_stream_name = {instance_id}/var/log/amazon/ssm/amazon-ssm-agent.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/amazon/ssm/errors.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/amazon/ssm/errors.log
+                log_stream_name = {instance_id}/var/log/amazon/ssm/errors.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/audit/audit.log]
+                file = /var/log/audit/audit.log
+                log_stream_name = {instance_id}/var/log/audit/audit.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/awslogs.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/awslogs.log
+                log_stream_name = {instance_id}/var/log/awslogs.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/boot.log]
+                file = /var/log/boot.log
+                log_stream_name = {instance_id}/var/log/boot.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/cfn-init.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-init.log
+                log_stream_name = {instance_id}/var/log/cfn-init.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/cfn-wire.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-wire.log
+                log_stream_name = {instance_id}/var/log/cfn-wire.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/cloud-init-output.log]
+                file = /var/log/cloud-init-output.log
+                log_stream_name = {instance_id}/var/log/cloud-init-output.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/cloud-init.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cloud-init.log
+                log_stream_name = {instance_id}/var/log/cloud-init.log
+                log_group_name = ${EC2LogGroup}
+                [/var/log/cron]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cron
+                log_stream_name = {instance_id}/var/log/cron
+                log_group_name = ${EC2LogGroup}
+                [/var/log/maillog]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/maillog
+                log_stream_name = {instance_id}/var/log/maillog
+                log_group_name = ${EC2LogGroup}
+                [/var/log/messages]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/messages
+                log_stream_name = {instance_id}/var/log/messages
+                log_group_name = ${EC2LogGroup}
+                [/var/log/secure]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/secure
+                log_stream_name = {instance_id}/var/log/secure
+                log_group_name = ${EC2LogGroup}
+                [/var/log/yum.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/yum.log
+                log_stream_name = {instance_id}/var/log/yum.log
+                log_group_name = ${EC2LogGroup}
+              mode: '000644'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                packages:
+                  yum:
+                  - awslogs
+                files:
+                - '/etc/awslogs/awslogs.conf'
+                - '/etc/awslogs/awscli.conf'
+
     Properties:
       KeyName: !Ref KeyName
       IamInstanceProfile: !Ref InstanceProfile
-      ImageId: ami-7e957e1c
+      ImageId: ami-00e17d1165b9dd3ec
       InstanceType: t2.micro
       SecurityGroups:
       - !Ref EC2SecurityGroup
@@ -132,9 +255,12 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
 
+          # Start cfn-init
+          /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2ServerLaunchConfiguration || error_exit 'Failed to run cfn-init'
+
           docker run -d -p 80:3000 ikerry/node-app:latest
-          
-          echo; 
+
+          echo;
           echo '### Wait until instance is registered as healthy in the ELB'
           until [ "$state" == "InService" ]; do
             state=$(aws --region ${AWS::Region} elb describe-instance-health \
@@ -145,7 +271,8 @@ Resources:
             sleep 10
           done
 
-          /usr/local/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2ASG
+          # signal success
+          /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2ASG
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -169,14 +296,26 @@ Resources:
           Action:
           - sts:AssumeRole
       Policies:
+        - PolicyName: !Sub server-${Environment}
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+                - ec2:*
+                - elasticloadbalancing:DescribeInstanceHealth
+                - autoscaling:DescribeTags
+              Resource: "*"
         - PolicyName: create-log-stream
           PolicyDocument:
             Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
+              - logs:CreateLogGroup
               - logs:CreateLogStream
               - logs:PutLogEvents
+              - logs:Describe*
               Resource: !GetAtt EC2LogGroup.Arn
         - PolicyName: allow-read-only-access-to-ecr
           PolicyDocument:
@@ -191,14 +330,6 @@ Resources:
               - ecr:DescribeRepositories
               - ecr:ListImages
               - ecr:BatchGetImage
-              Resource: "*"
-        - PolicyName: allow-to-describe-instance-health-on-the-elb
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-            - Effect: Allow
-              Action:
-              - elasticloadbalancing:DescribeInstanceHealth
               Resource: "*"
         - PolicyName: allow-send-email
           PolicyDocument:
@@ -216,13 +347,15 @@ Resources:
         #       Action:
         #       - kms:Decrypt
         #       Resource: !Ref KmsKeyArn
-        - PolicyName: allow-put-metric-data
+        - PolicyName: allow-metric-data
           PolicyDocument:
             Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
               - cloudwatch:PutMetricData
+              - cloudwatch:EnableAlarmActions
+              - cloudwatch:PutMetricAlarm
               Resource: "*"
 Outputs:
   ElasticLoadBalancer:

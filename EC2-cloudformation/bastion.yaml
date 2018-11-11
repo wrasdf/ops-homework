@@ -32,7 +32,7 @@ Resources:
           PropagateAtLaunch: true
       TerminationPolicies:
         - OldestInstance
-      VPCZoneIdentifier: !ImportValue: my-cfn-public-subnets
+      VPCZoneIdentifier: !Split [ ',', !ImportValue my-cfn-public-subnets ]
 
   BastionLaunchConfiguration:
     Type: "AWS::AutoScaling::LaunchConfiguration"
@@ -155,7 +155,7 @@ Resources:
     Properties:
       GroupName: !Sub bastion-${Environment}
       GroupDescription: Allow traffic from office range to bastion
-      VpcId: !ImportValue: my-cfn-vpc
+      VpcId: !ImportValue my-cfn-vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -164,3 +164,11 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub bastion-${Environment}
+
+Outputs:
+
+  BastionSecurityGroup:
+    Description: Bastion Access Security Group
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: !Sub my-cfn-bastion-${Environment}

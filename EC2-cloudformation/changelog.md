@@ -1,11 +1,18 @@
 ## Change list:
 
 ### version 0.0.3
-- Add vpv-flow-logs
-- ADD DB subnet
+- Update VPC stack
+  - add vpv-flow-logs
+  - add DB subnet
 - Update Bastion.yaml
-  - Use ASG
-  - Add bastion logs
+  - use ASG
+  - add bastion logs
+- Update App Statck  
+  - Use Amazon Linux 2 AMI
+  - use AutoScalingReplacingUpdate
+  - support 443 -> 80
+    - use AWS certificate
+  - add Server log
 
 ### version 0.0.2
 - Add ENV support

@@ -4,7 +4,7 @@
     "region": "ap-southeast-2",
     "ssh_keypair_name": "kerry_aws_key",
     "ssh_private_key_file": "/root/.ssh/kerry_aws_key.pem",
-    "source_ami": "ami-e2021d81",
+    "source_ami": "ami-00e17d1165b9dd3ec",
     "instance_type": "t2.micro",
     "ssh_username": "ubuntu",
     "ami_name": "packer my-cfn {{timestamp}}",

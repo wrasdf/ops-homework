@@ -73,7 +73,7 @@ Resources:
           Action:
             - "sts:AssumeRole"
       Path: "/"
-      RoleName: !Sub ${EnvironmentName}-vpc-flow-log
+      RoleName: !Sub ${Environment}-vpc-flow-log
 
   FlowLogPolicy:
     Type: AWS::IAM::Policy
@@ -95,7 +95,7 @@ Resources:
   CloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub ${EnvironmentName}-flow-logs
+      LogGroupName: !Sub ${Environment}-flow-logs
       RetentionInDays: !Ref VpcFlowLogRetention
 
   FlowLog:

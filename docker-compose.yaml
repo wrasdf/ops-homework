@@ -9,7 +9,7 @@ services:
       - ./app:/app
 
   stackup:
-    image: realestate/stackup:1.2.0
+    image: realestate/stackup:latest
     working_dir: /app
     volumes:
       - $HOME/.aws:/root/.aws
@@ -17,13 +17,6 @@ services:
     environment:
       - AWS_DEFAULT_REGION=ap-southeast-2
 
-  packer:
-    image: hashicorp/packer:light
-    working_dir: /app
-    volumes:
-      - $HOME/.aws:/root/.aws
-      - ./packer:/app
-      - $HOME/.ssh:/root/.ssh
   aws:
     image: cgswong/aws:aws
     working_dir: /app
