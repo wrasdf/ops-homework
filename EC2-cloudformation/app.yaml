@@ -97,7 +97,7 @@ Resources:
       LoadBalancerNames:
       - !Ref ElasticLoadBalancer
       MinSize: "1"
-      MaxSize: "1"
+      MaxSize: "2"
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-EC2-ASG
@@ -106,7 +106,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: !Ref DesiredInstances
-        Timeout: PT10M
+        Timeout: PT5M
 
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -142,15 +142,6 @@ Resources:
             yum:
               awslogs: []
           files:
-            /etc/awslogs/awscli.conf:
-              content: !Sub |
-                [default]
-                region = ${AWS::Region}
-                [plugins]
-                cwlogs = cwlogs
-              mode: '000644'
-              owner: root
-              group: root
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [default]
@@ -258,8 +249,10 @@ Resources:
           #!/bin/bash -xe
 
           # Start cfn-init
+          yum install -y aws-cfn-bootstrap awscli
           /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2ServerLaunchConfiguration || error_exit 'Failed to run cfn-init'
 
+          # Start app
           docker run -d -p 80:3000 ikerry/node-app:latest
 
           echo;
@@ -274,7 +267,7 @@ Resources:
           done
 
           # signal success
-          /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2ASG
+          /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2ASG
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
