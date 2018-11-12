@@ -22,13 +22,13 @@ Resources:
     Type: AWS::ECS::Service
     # DependsOn: ServiceListenerRule
     Properties:
-      Cluster: !ImportValue my-cfn-cluster
+      Cluster: !ImportValue my-ecs-cluster
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 100
       Role: !Ref ServiceRole
       ServiceName: !Ref ServiceName
-      DesiredCount: 1
+      DesiredCount: 2
       TaskDefinition: !Ref TaskDefinition
       LoadBalancers:
       - ContainerName: !Ref ServiceName
@@ -58,13 +58,13 @@ Resources:
   CloudWatchLogsGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub ${AWS::StackName}-${ServiceName}
+      LogGroupName: !Sub ecs-cluster-${Environment}-${ServiceName}
       RetentionInDays: 14
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: !ImportValue my-cfn-vpc
+      VpcId: !ImportValue my-ecs-vpc
       Port: !Ref ContainerPort
       Protocol: HTTP
       Matcher:
@@ -78,7 +78,7 @@ Resources:
   ServiceHttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !ImportValue my-cfn-cluster-loadBalancer
+      LoadBalancerArn: !ImportValue my-ecs-cluster-loadBalancer
       Port: 443
       Protocol: HTTPS
       DefaultActions:
@@ -145,7 +145,7 @@ Resources:
       ResourceId: !Join
         - /
         - - service
-          - !ImportValue my-cfn-cluster
+          - !ImportValue my-ecs-cluster
           - !GetAtt ECSService.Name
       RoleARN: !GetAtt
         - AutoscalingRole
@@ -194,7 +194,7 @@ Resources:
         - !Ref ServiceScaleDownPolicy
       Dimensions:
         - Name: ClusterName
-          Value: !ImportValue my-cfn-cluster
+          Value: !ImportValue my-ecs-cluster
         - Name: ServiceName
           Value: !GetAtt ECSService.Name
       ComparisonOperator: GreaterThanThreshold
