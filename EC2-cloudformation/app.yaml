@@ -230,9 +230,6 @@ Resources:
               awslogsd:
                 enabled: true
                 ensureRunning: true
-                packages:
-                  yum:
-                  - awslogs
                 files:
                 - '/etc/awslogs/awslogs.conf'
                 - '/etc/awslogs/awscli.conf'

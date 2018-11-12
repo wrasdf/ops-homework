@@ -1,32 +1,52 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
+  Environment:
+    Description: The name to associate resources with
+    Type: String
+  VpcFlowLogRetention:
+    Description: Flow Log Retention in Days
+    Type: String
+    Default: 14
+
   CidrBlock:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
     Description: VPC CIDR Block (eg 10.30.0.0/16)
   AvailabilityZone1:
-    Description: The AvailabilityZone ap-southeast-2 A
-    Type: AWS::EC2::AvailabilityZone::Name
+    Description: The AvailabilityZone ap-southeast-1a
+    # Type: AWS::EC2::AvailabilityZone::Name
+    Type: String
   SubnetCIDRPublic1:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
-    Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
+    Description: VPC CIDR Block for the Public Subnet (eg 10.30.32.0/20)
   SubnetCIDRPrivate1:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
-    Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
+    Description: VPC CIDR Block for the Public Subnet (eg 10.30.0.0/19)
+  SubnetCIDRDB1:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Type: String
+    Description: VPC CIDR Block for the Public Subnet (eg 10.30.28.0/20)
+
   AvailabilityZone2:
-    Description: The AvailabilityZone ap-southeast-2 A
-    Type: AWS::EC2::AvailabilityZone::Name
+    Description: The AvailabilityZone ap-southeast-1b
+    # Type: AWS::EC2::AvailabilityZone::Name
+    Type: String
   SubnetCIDRPublic2:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
-    Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
+    Description: VPC CIDR Block for the Public Subnet (eg 10.30.96.0/20)
   SubnetCIDRPrivate2:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Type: String
-    Description: VPC CIDR Block for the Public Subnet (eg 10.0.0.0/24)
+    Description: VPC CIDR Block for the Public Subnet (eg 10.30.64.0/19)
+  SubnetCIDRDB2:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Type: String
+    Description: VPC CIDR Block for the Public Subnet (eg 10.30.48.0/20)
+
 
 Resources:
   VPC:
@@ -41,6 +61,53 @@ Resources:
       - Key: Name
         Value:
           Ref: AWS::StackName
+
+  FlowLogRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        -
+          Effect: "Allow"
+          Principal:
+            Service:
+              - "vpc-flow-logs.amazonaws.com"
+          Action:
+            - "sts:AssumeRole"
+      Path: "/"
+      RoleName: !Sub ${Environment}-vpc-flow-log
+
+  FlowLogPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "allow_cw_logs"
+      PolicyDocument:
+        Statement:
+        - Effect: "Allow"
+          Action:
+           - "logs:CreateLogGroup"
+           - "logs:CreateLogStream"
+           - "logs:PutLogEvents"
+           - "logs:DescribeLogGroups"
+           - "logs:DescribeLogStreams"
+          Resource: "*"
+      Roles:
+        - !Ref FlowLogRole
+
+  CloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${Environment}-flow-logs
+      RetentionInDays: !Ref VpcFlowLogRetention
+
+  FlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      DeliverLogsPermissionArn : !GetAtt FlowLogRole.Arn
+      LogGroupName : !Ref CloudWatchLogGroup
+      ResourceId : !Ref VPC
+      ResourceType : VPC
+      TrafficType : ALL
 
   DHCPOptions:
     Type: AWS::EC2::DHCPOptions
@@ -103,7 +170,6 @@ Resources:
     Properties:
       Domain: vpc
 
-
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -135,10 +201,8 @@ Resources:
   PublicSubnetRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-        RouteTableId: !Ref PublicRouteTable1
-        SubnetId: !Ref PublicSubnet1
-
-
+      RouteTableId: !Ref PublicRouteTable1
+      SubnetId: !Ref PublicSubnet1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -171,9 +235,8 @@ Resources:
   PublicSubnetRouteTableAssociation2:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-        RouteTableId: !Ref PublicRouteTable2
-        SubnetId: !Ref PublicSubnet2
-
+      RouteTableId: !Ref PublicRouteTable2
+      SubnetId: !Ref PublicSubnet2
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -240,22 +303,55 @@ Resources:
         RouteTableId: !Ref PrivateRouteTable2
         SubnetId: !Ref PrivateSubnet2
 
+  PrivateDBSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Ref AvailabilityZone1
+      CidrBlock: !Ref SubnetCIDRDB1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${AvailabilityZone1}-db-Private1
+
+  PrivateDBSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Ref AvailabilityZone2
+      CidrBlock: !Ref SubnetCIDRDB2
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${AvailabilityZone2}-db-Private2
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DB Subnet groups
+      SubnetIds:
+        - !Ref PrivateDBSubnet1
+        - !Ref PrivateDBSubnet2
 
 Outputs:
-    VPC:
-      Description: A reference to the created VPC
-      Value: !Ref VPC
-      Export:
-        Name: my-cfn-vpc
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+    Export:
+      Name: my-ecs-vpc
 
-    PublicSubnets:
-      Description: A list of the public subnets
-      Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
-      Export:
-        Name: my-cfn-public-subnets
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+    Export:
+      Name: my-ecs-public-subnets
 
-    PrivateSubnets:
-      Description: A list of the private subnets
-      Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
-      Export:
-        Name: my-cfn-private-subnets
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+    Export:
+      Name: my-ecs-private-subnets
+
+  DBPrivateSubnets:
+    Description: A list of the db private subnets
+    Value: !Join [ ",", [ !Ref PrivateDBSubnet1, !Ref PrivateDBSubnet2 ]]
+    Export:
+      Name: my-ecs-private-db-subnets

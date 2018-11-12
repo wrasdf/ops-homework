@@ -1,3 +1,11 @@
+## version 0.0.2
+- Add Bastion Stack
+- VPC Stack
+  - add vpv-flow-logs
+  - add DB private subnets
+- Cluster Stack
+  - Base on Region to decide the AMI
+
 ## version 0.0.1
 
 ### CloudFormation Details

@@ -1,2 +1,3 @@
 Version: "V0.0.2"
-KeyName: "ecs_demo_key"
+Environment: ecs-dev
+KeyName: "ECS-Key"

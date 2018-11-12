@@ -2,11 +2,18 @@
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
   Version:
-    Description: "0.0.1"
+    Description: "0.0.2"
     Type: String
   KeyName:
     Description: Application ssh login keypair name
     Type: AWS::EC2::KeyPair::KeyName
+    Default: ECS-Key
+Mappings:
+  AWSRegionToAMI:
+    ap-southeast-1:
+      AMIID: ami-08d4fe232c67b81b8
+    ap-southeast-2:
+      AMIID: ami-08c26730c8ee004fa
 
 Resources:
 
@@ -15,10 +22,16 @@ Resources:
     Properties:
       ClusterName: !Sub ${AWS::StackName}-Cluster
 
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ecs-cluster-log-${Environment}
+      RetentionInDays: 30
+
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Subnets: !Split [ ',', !ImportValue my-cfn-public-subnets ]
+      Subnets: !Split [ ',', !ImportValue my-ecs-public-subnets ]
       SecurityGroups:
       - !Ref ALBSecurityGroup
       Tags:
@@ -49,11 +62,11 @@ Resources:
   ECSClusterAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      VPCZoneIdentifier: !Split [ ',', !ImportValue my-cfn-private-subnets ]
+      VPCZoneIdentifier: !Split [ ',', !ImportValue my-ecs-private-subnets ]
       LaunchConfigurationName: !Ref ECSClusterLaunchConfiguration
-      MinSize: 1
-      MaxSize: 3
-      DesiredCapacity: 1
+      MinSize: 2
+      MaxSize: 4
+      DesiredCapacity: 2
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-ECS-ClUSTER-ASG
@@ -134,18 +147,20 @@ Resources:
       - ALBSecurityGroup
     Properties:
       GroupDescription: ECS Cluster Security Group
-      VpcId: !ImportValue my-cfn-vpc
+      VpcId: !ImportValue my-ecs-vpc
       SecurityGroupEgress:
       - IpProtocol: "-1"
         CidrIp: 0.0.0.0/0
       SecurityGroupIngress:
       - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
         FromPort: 32768
         ToPort: 61000
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourceSecurityGroupId:
+          Fn::ImportValue:
+            !Sub my-ecs-bastion-${Environment}
       - SourceSecurityGroupId: !Ref ALBSecurityGroup
         IpProtocol: -1
       Tags:
@@ -153,12 +168,12 @@ Resources:
         Value: !Sub ${AWS::StackName}-ECS-CLUSTER-SG
 
   ECSClusterLaunchConfiguration:
-    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       KeyName: !Ref KeyName
       IamInstanceProfile: !Ref ECSClusterProfile
-      ImageId: ami-36867d54
-      InstanceType: t2.medium
+      ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
+      InstanceType: t2.large
       SecurityGroups:
       - !Ref ECSClusterSecurityGroup
       UserData:
@@ -184,7 +199,6 @@ Resources:
             yum:
               awslogs: []
         files:
-
           "/etc/cfn/cfn-hup.conf":
             mode: 000400
             owner: root
@@ -193,7 +207,6 @@ Resources:
               [main]
               stack=${AWS::StackId}
               region=${AWS::Region}
-
           "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
             mode: 000400
             owner: root
@@ -203,54 +216,87 @@ Resources:
               triggers=post.update
               path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init
               action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterLaunchConfiguration
-
+              runas=root
           "/etc/awslogs/awscli.conf":
             content: !Sub |
               [plugins]
               cwlogs = cwlogs
               [default]
               region = ${AWS::Region}
-
           "/etc/awslogs/awslogs.conf":
             content: !Sub |
               [general]
               state_file = /var/lib/awslogs/agent-state
-
-              [/var/log/dmesg]
-              file = /var/log/dmesg
-              log_group_name = ${ECSCluster}-/var/log/dmesg
-              log_stream_name = ${ECSCluster}
-
-              [/var/log/messages]
-              file = /var/log/messages
-              log_group_name = ${ECSCluster}-/var/log/messages
-              log_stream_name = ${ECSCluster}
+              [/var/log/amazon/ssm/amazon-ssm-agent.log]
+              datetime_format = %Y-%m-%d %H:%M:%S
+              file = /var/log/amazon/ssm/amazon-ssm-agent.log
+              log_stream_name = {instance_id}/var/log/amazon/ssm/amazon-ssm-agent.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/amazon/ssm/errors.log]
+              datetime_format = %Y-%m-%d %H:%M:%S
+              file = /var/log/amazon/ssm/errors.log
+              log_stream_name = {instance_id}/var/log/amazon/ssm/errors.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/audit/audit.log]
+              file = /var/log/audit/audit.log
+              log_stream_name = {instance_id}/var/log/audit/audit.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/awslogs.log]
+              datetime_format = %Y-%m-%d %H:%M:%S
+              file = /var/log/awslogs.log
+              log_stream_name = {instance_id}/var/log/awslogs.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/boot.log]
+              file = /var/log/boot.log
+              log_stream_name = {instance_id}/var/log/boot.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/cfn-init.log]
+              datetime_format = %Y-%m-%d %H:%M:%S
+              file = /var/log/cfn-init.log
+              log_stream_name = {instance_id}/var/log/cfn-init.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/cfn-wire.log]
+              datetime_format = %Y-%m-%d %H:%M:%S
+              file = /var/log/cfn-wire.log
+              log_stream_name = {instance_id}/var/log/cfn-wire.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/cloud-init-output.log]
+              file = /var/log/cloud-init-output.log
+              log_stream_name = {instance_id}/var/log/cloud-init-output.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/cloud-init.log]
               datetime_format = %b %d %H:%M:%S
-
-              [/var/log/docker]
-              file = /var/log/docker
-              log_group_name = ${ECSCluster}-/var/log/docker
-              log_stream_name = ${ECSCluster}
-              datetime_format = %Y-%m-%dT%H:%M:%S.%f
-
-              [/var/log/ecs/ecs-init.log]
-              file = /var/log/ecs/ecs-init.log.*
-              log_group_name = ${ECSCluster}-/var/log/ecs/ecs-init.log
-              log_stream_name = ${ECSCluster}
-              datetime_format = %Y-%m-%dT%H:%M:%SZ
-
-              [/var/log/ecs/ecs-agent.log]
-              file = /var/log/ecs/ecs-agent.log.*
-              log_group_name = ${ECSCluster}-/var/log/ecs/ecs-agent.log
-              log_stream_name = ${ECSCluster}
-              datetime_format = %Y-%m-%dT%H:%M:%SZ
-
-              [/var/log/ecs/audit.log]
-              file = /var/log/ecs/audit.log.*
-              log_group_name = ${ECSCluster}-/var/log/ecs/audit.log
-              log_stream_name = ${ECSCluster}
-              datetime_format = %Y-%m-%dT%H:%M:%SZ
-
+              file = /var/log/cloud-init.log
+              log_stream_name = {instance_id}/var/log/cloud-init.log
+              log_group_name = ${ECSLogGroup}
+              [/var/log/cron]
+              datetime_format = %b %d %H:%M:%S
+              file = /var/log/cron
+              log_stream_name = {instance_id}/var/log/cron
+              log_group_name = ${ECSLogGroup}
+              [/var/log/maillog]
+              datetime_format = %b %d %H:%M:%S
+              file = /var/log/maillog
+              log_stream_name = {instance_id}/var/log/maillog
+              log_group_name = ${ECSLogGroup}
+              [/var/log/messages]
+              datetime_format = %b %d %H:%M:%S
+              file = /var/log/messages
+              log_stream_name = {instance_id}/var/log/messages
+              log_group_name = ${ECSLogGroup}
+              [/var/log/secure]
+              datetime_format = %b %d %H:%M:%S
+              file = /var/log/secure
+              log_stream_name = {instance_id}/var/log/secure
+              log_group_name = ${ECSLogGroup}
+              [/var/log/yum.log]
+              datetime_format = %b %d %H:%M:%S
+              file = /var/log/yum.log
+              log_stream_name = {instance_id}/var/log/yum.log
+              log_group_name = ${ECSLogGroup}
+            mode: '000644'
+            owner: root
+            group: root
         services:
           sysvinit:
             cfn-hup:
@@ -288,13 +334,14 @@ Resources:
           Action:
           - sts:AssumeRole
       Policies:
-        - PolicyName: allow-logs
+        - PolicyName: allow-log-stream
           PolicyDocument:
+            Version: 2012-10-17
             Statement:
             - Effect: Allow
               Action:
               - logs:*
-              Resource: '*'
+              Resource: "*"
         - PolicyName: allow-read-only-access-to-ecr
           PolicyDocument:
             Statement:
@@ -348,14 +395,14 @@ Resources:
             Statement:
             - Effect: Allow
               Action:
-              - ec2messages:*
+              - cloudwatch:*
               Resource: "*"
         - PolicyName: allow-EC2Messages
           PolicyDocument:
             Statement:
             - Effect: Allow
               Action:
-              - cloudwatch:*
+              - ec2messages:*
               Resource: "*"
         - PolicyName: allow-SSM
           PolicyDocument:
@@ -370,12 +417,12 @@ Outputs:
     Description: A reference to the cluster
     Value: !Ref ECSCluster
     Export:
-      Name: my-cfn-cluster
+      Name: my-ecs-cluster
   LoadBalancer:
     Description: A reference to the Application Load Balancer
     Value: !Ref LoadBalancer
     Export:
-      Name: my-cfn-cluster-loadBalancer
+      Name: my-ecs-cluster-loadBalancer
   LoadBalancerUrl:
     Description: The URL of the ALB
     Value: !GetAtt LoadBalancer.DNSName
