@@ -5,7 +5,7 @@
 
 ### Deploy to EC2 instance
 
-- [Change Logs](https://github.com/wrasdf/ops-homework/blob/master/EC2-cloudformation/changelog.md)
+- [Change Logs](https://github.com/wrasdf/ops-homework/blob/master/EC2/changelog.md)
 
 - build the demo app & push to docker hub
 
@@ -31,7 +31,7 @@ make deploy-ec2-bastion
 
 ### Deploy to ECS
 
-- [Change Logs](https://github.com/wrasdf/ops-homework/blob/master/ECS-cloudformation/changelog.md)
+- [Change Logs](https://github.com/wrasdf/ops-homework/blob/master/ECS/changelog.md)
 
 
 - build the demo app & push to docker hub
