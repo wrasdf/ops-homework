@@ -25,7 +25,7 @@ deploy-ec2-%:
 verify-ecs-%:
 	$(DCR) aws cloudformation validate-template --template-body file:///app/ECS/cfn/$(*).yaml
 
-verify-ecs-service-%:
+verify-service-%:
 	$(DCR) aws cloudformation validate-template --template-body file:///app/ECS/cfn/services/$(*).yaml
 
 
@@ -33,6 +33,6 @@ deploy-ecs-%:
 	make verify-ecs-$(*)
 	$(DCR) stackup ecs-stack-$(*) up -t ./ECS/cfn/vpc.yaml -p ./ECS/params/dev/$(*).yaml
 
-deploy-ecs-service-%:
+deploy-service-%:
 	make verify-ecs-service-$(*)
 	$(DCR) stackup ecs-stack-service-$(*) up -t ./ECS/cfn/services/$(*).yaml -p ./ECS/params/dev/services/$(*).yaml
