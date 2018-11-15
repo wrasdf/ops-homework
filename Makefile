@@ -31,7 +31,7 @@ verify-service-%:
 
 deploy-ecs-%:
 	make verify-ecs-$(*)
-	$(DCR) stackup ecs-stack-$(*) up -t ./ECS/cfn/vpc.yaml -p ./ECS/params/dev/$(*).yaml
+	$(DCR) stackup ecs-stack-$(*) up -t ./ECS/cfn/$(*).yaml -p ./ECS/params/dev/$(*).yaml
 
 deploy-service-%:
 	make verify-ecs-service-$(*)
