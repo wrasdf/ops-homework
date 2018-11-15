@@ -2,7 +2,10 @@
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
   Version:
-    Description: "0.0.2"
+    Description: "v0.0.2"
+    Type: String
+  Environment:
+    Description: The name of cluster ENV
     Type: String
   KeyName:
     Description: Application ssh login keypair name
@@ -42,7 +45,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow http to client cluster
-      VpcId: !ImportValue my-cfn-vpc
+      VpcId: !ImportValue my-ecs-vpc
       SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: 80
