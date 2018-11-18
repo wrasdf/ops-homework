@@ -23,9 +23,9 @@ class HealthyResource:
         resp.body = ('ok')
 
 api = falcon.API()
-api.add_route('/', RootResource())
-api.add_route('/metadata', MetadataResource())
-api.add_route('/health', HealthyResource())
+api.add_route('/py', RootResource())
+api.add_route('/py/metadata', MetadataResource())
+api.add_route('/py/health', HealthyResource())
 
 if __name__ == '__main__':
     httpd = simple_server.make_server('0.0.0.0', 3003, api)

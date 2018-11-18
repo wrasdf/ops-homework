@@ -1,6 +1,6 @@
 ---
 Environment: ecs-dev
-ContainerImage: ikerry/node-app:0.1.0
+ContainerImage: ikerry/node-app:0.1.1
 ServiceName: todo-service
 ContainerPort: "3000"
-Path: "/"
+Path: "/todo"
