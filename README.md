@@ -19,15 +19,16 @@ make push-v0.1.0
 make deploy-ec2-vpc
 ```
 
+- Create the bashion EC2 for debug
+```
+make deploy-ec2-bastion
+```
+
 - Deploy your app into EC2
 ```
 make deploy-ec2-app
 ```
 
-- Create the bashion EC2 for debug
-```
-make deploy-ec2-bastion
-```
 
 ### Deploy to ECS
 
@@ -38,12 +39,19 @@ make deploy-ec2-bastion
 
 ```
 docker login
-make push-v0.1.0
+make push-node-0.1.1
+make push-py-0.1.1
 ```
 
 - Create the ECS VPC stack
 ```
 make deploy-ecs-vpc
+
+```
+
+- Create the bashion EC2 for debug
+```
+make deploy-ecs-bastion
 ```
 
 - Build your cluster environment
@@ -51,7 +59,13 @@ make deploy-ecs-vpc
 make deploy-ecs-cluster
 ```
 
-- Deploy your service into ECS
+- Deploy your services into ECS
 ```
-make deploy-ecs-service
+make deploy-service-todo
+make deploy-service-py
 ```
+
+#### References:
+- ECS:
+  - https://github.com/aws-samples/ecs-refarch-cloudformation
+  - https://github.com/aws-samples/ecs-refarch-cloudformation/issues/13

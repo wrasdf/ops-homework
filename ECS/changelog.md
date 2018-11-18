@@ -5,6 +5,9 @@
   - add DB private subnets
 - Cluster Stack
   - Base on Region to decide the AMI
+- Services Stack
+  - Add two micro services
+  - Fix ServiceListenerRule issue
 
 ## version 0.0.1
 
@@ -34,16 +37,3 @@
   - ServiceScalingDown
   - ServiceAutoscalingRole
   - CloudWatchLogsGroup
-
-### TODO
-
-- ListenerRule
-- ALB Path
-- ALB Host
-- Blue Green Green Deployment
-
-
-### Notes:
-
-- ALB should be in PublicSubnets
-- Log Group belongs to services
