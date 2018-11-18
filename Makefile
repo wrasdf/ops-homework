@@ -2,15 +2,26 @@
 
 DCR := docker-compose run --rm
 
-run:
-	$(DCR) node -d -p 3000:3000 node
+run-node:
+	$(DCR) -d -p 3000:3000 node
 
-push-%:
-	docker build -t node-app:latest ./app
+run-py:
+	$(DCR) -d -p 3003:3003 pyapp
+
+push-node-%:
+	docker build -t node-app:latest ./apps/node
 	docker tag node-app:latest ikerry/node-app:$(*)
 	docker tag node-app:latest ikerry/node-app:latest
 	docker push ikerry/node-app:$(*)
 	docker push ikerry/node-app:latest
+
+push-py-%:
+	docker build -t py-app:latest ./apps/py
+	docker tag py-app:latest ikerry/py-app:$(*)
+	docker tag py-app:latest ikerry/py-app:latest
+	docker push ikerry/py-app:$(*)
+	docker push ikerry/py-app:latest
+
 
 #for EC2
 verify-ec2-%:
@@ -34,5 +45,5 @@ deploy-ecs-%:
 	$(DCR) stackup ecs-stack-$(*) up -t ./ECS/cfn/$(*).yaml -p ./ECS/params/dev/$(*).yaml
 
 deploy-service-%:
-	make verify-ecs-service-$(*)
+	make verify-service-$(*)
 	$(DCR) stackup ecs-stack-service-$(*) up -t ./ECS/cfn/services/$(*).yaml -p ./ECS/params/dev/services/$(*).yaml

@@ -1,0 +1,6 @@
+---
+Environment: ecs-dev
+ContainerImage: ikerry/py-app:0.1.0
+ServiceName: py-service
+ContainerPort: "3003"
+Path: "/py"

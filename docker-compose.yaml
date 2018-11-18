@@ -1,13 +1,6 @@
 ---
 version: "3.2"
 services:
-  shush:
-    image: realestate/shush:1.3.4
-    working_dir: /app
-    volumes:
-      - $HOME/.aws:/root/.aws
-      - ./app:/app
-
   stackup:
     image: realestate/stackup:latest
     working_dir: /app
@@ -28,12 +21,24 @@ services:
 
   node:
     build:
-      context: ./app
+      context: ./apps/node
       dockerfile: Dockerfile
     expose:
       - "3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+
+  pyapp:
+    build:
+      context: ./apps/py
+      dockerfile: Dockerfile
+    expose:
+      - "3003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
       interval: 5s
       timeout: 10s
       retries: 3
