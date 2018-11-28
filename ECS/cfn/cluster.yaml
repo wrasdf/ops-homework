@@ -14,9 +14,9 @@ Parameters:
 Mappings:
   AWSRegionToAMI:
     ap-southeast-1:
-      AMIID: ami-08d4fe232c67b81b8
+      AMIID: ami-050865a806e0dae53
     ap-southeast-2:
-      AMIID: ami-08c26730c8ee004fa
+      AMIID: ami-02c73ee1100ce3e7a
 
 Resources:
 
@@ -208,10 +208,9 @@ Resources:
           # set up the ECS config
           cat >> /etc/ecs/ecs.config <<EoConf
           ECS_CLUSTER=${ECSCluster}
+          ECS_DATADIR=/data
+          ECS_LOGLEVEL=info
           EoConf
-
-          stop ecs
-          start ecs
 
           /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterLaunchConfiguration
           /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSClusterAutoScalingGroup
